@@ -156,12 +156,18 @@ func Scan(rows *sql.Rows, db *DB, initialized bool) {
 					for idx, field := range fields {
 						if field != nil {
 							values[idx] = reflect.New(reflect.PtrTo(field.IndirectFieldType)).Interface()
+							if _, ok := values[idx].(sql.Scanner); !ok && field.DataType == "json" {
+								values[idx] = Any(values[idx])
+							}
 						}
 					}
 
 					db.AddError(rows.Scan(values...))
 
 					for idx, field := range fields {
+						if _, ok := values[idx].(*Generic); ok {
+							values[idx] = values[idx].(*Generic).A
+						}
 						if len(joinFields) != 0 && joinFields[idx][0] != nil {
 							value := reflect.ValueOf(values[idx]).Elem()
 							relValue := joinFields[idx][0].ReflectValueOf(elem)
@@ -195,10 +201,16 @@ func Scan(rows *sql.Rows, db *DB, initialized bool) {
 				for idx, column := range columns {
 					if field := Schema.LookUpField(column); field != nil && field.Readable {
 						values[idx] = reflect.New(reflect.PtrTo(field.IndirectFieldType)).Interface()
+						if _, ok := values[idx].(sql.Scanner); !ok && field.DataType == "json" {
+							values[idx] = Any(values[idx])
+						}
 					} else if names := strings.Split(column, "__"); len(names) > 1 {
 						if rel, ok := Schema.Relationships.Relations[names[0]]; ok {
 							if field := rel.FieldSchema.LookUpField(strings.Join(names[1:], "__")); field != nil && field.Readable {
 								values[idx] = reflect.New(reflect.PtrTo(field.IndirectFieldType)).Interface()
+								if _, ok := values[idx].(sql.Scanner); !ok && field.DataType == "json" {
+									values[idx] = Any(values[idx])
+								}
 								continue
 							}
 						}
@@ -212,6 +224,9 @@ func Scan(rows *sql.Rows, db *DB, initialized bool) {
 				db.AddError(rows.Scan(values...))
 
 				for idx, column := range columns {
+					if _, ok := values[idx].(*Generic); ok {
+						values[idx] = values[idx].(*Generic).A
+					}
 					if field := Schema.LookUpField(column); field != nil && field.Readable {
 						field.Set(db.Statement.ReflectValue, values[idx])
 					} else if names := strings.Split(column, "__"); len(names) > 1 {
