@@ -2,6 +2,7 @@ package callbacks
 
 import (
 	"reflect"
+	"strings"
 	"sort"
 
 	"gorm.io/gorm"
@@ -244,12 +245,18 @@ func ConvertToAssignments(stmt *gorm.Statement) (set clause.Set) {
 						}
 
 						if ok || !isZero {
+							if strings.ToLower(field.GORMDataType) == "json" {
+								value = gorm.Any(value)
+							}
 							set = append(set, clause.Assignment{Column: clause.Column{Name: field.DBName}, Value: value})
 							assignValue(field, value)
 						}
 					}
 				} else {
 					if value, isZero := field.ValueOf(updatingValue); !isZero {
+						if strings.ToLower(field.GORMDataType) == "json" {
+							value = gorm.Any(value)
+						}
 						stmt.AddClause(clause.Where{Exprs: []clause.Expression{clause.Eq{Column: field.DBName, Value: value}}})
 					}
 				}
